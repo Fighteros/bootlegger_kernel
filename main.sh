@@ -172,14 +172,10 @@ if [[ $KSU_ENABLED == "true" ]] && [[ ! -z "$KERNELSU_DIR" ]]; then
         cd $KERNEL_DIR && patch -p1 < revert_backport_path_umount.patch
         msg "Fixing possible path_umount conflicts..." && cd $WORKDIR
 
-        if [[ ! -f "$WORKDIR/patches/KernelSU/SuSFS/add_susfs_in_kernel-$KERNEL_VER.patch" ]]; then
+        if [[ ! -f "$WORKDIR/patches/KernelSU/SuSFS/$KERNEL_VER/add_susfs_in_kernel-$KERNEL_VER.patch" ]]; then
     	    cp ./patches/KernelSU/Backport/backport_path_umount.patch $KERNEL_DIR/
             cd $KERNEL_DIR && patch -p1 < backport_path_umount.patch
             msg "Backporting path_umount from 5.10.9..." && cd $WORKDIR
-        else
-            cp ./patches/KernelSU/Backport/backport_path_umount_part2.patch $KERNEL_DIR/ 
-            cd $KERNEL_DIR && patch -p1 < backport_path_umount_part2.patch
-            msg "Partially backporting path_umount from 5.10.9..." && cd $WORKDIR
         fi
     fi
 
@@ -203,17 +199,21 @@ if [[ $KSU_ENABLED == "true" ]] && [[ ! -z "$KERNELSU_DIR" ]]; then
     if [[ ! -f "$KERNEL_DIR/fs/susfs.c" || ! -f "$KERNEL_DIR/include/linux/susfs.h" ]]; then
         cd $WORKDIR
         if [[ -d "$KERNEL_DIR/$KERNELSU_DIR/kernel" ]]; then
-    	    cp  ./patches/KernelSU/SuSFS/enable_susfs_for_ksu_auto.patch $KERNEL_DIR/$KERNELSU_DIR/
-    	    cd $KERNEL_DIR/$KERNELSU_DIR && patch -p1 < enable_susfs_for_ksu_auto.patch
+    	    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/enable_susfs_for_ksu_auto.patch $KERNEL_DIR/$KERNELSU_DIR/
+	    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/sucompat.h $KERNEL_DIR/$KERNELSU_DIR/kernel/
+    	    cd $KERNEL_DIR/$KERNELSU_DIR && patch -p1 -F 3 < enable_susfs_for_ksu_auto.patch
         else
-    	    cp ./patches/KernelSU/SuSFS/enable_susfs_for_ksu_manual.patch $KERNEL_DIR/$KERNELSU_DIR/
-            cd $KERNEL_DIR/$KERNELSU_DIR && patch -p1 < enable_susfs_for_ksu_manual.patch
+    	    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/enable_susfs_for_ksu_manual.patch $KERNEL_DIR/$KERNELSU_DIR/
+	    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/sucompat.h $KERNEL_DIR/$KERNELSU_DIR/
+            cd $KERNEL_DIR/$KERNELSU_DIR && patch -p1 -F 3 < enable_susfs_for_ksu_manual.patch
         fi
     	msg "Importing SuSFS into KSU source..." && cd $WORKDIR
 
-        cp ./patches/KernelSU/SuSFS/add_susfs_in_kernel-$KERNEL_VER.patch $KERNEL_DIR/
-    	cp ./patches/KernelSU/SuSFS/susfs.c $KERNEL_DIR/fs/
-    	cp ./patches/KernelSU/SuSFS/susfs.h $KERNEL_DIR/include/linux/
+        cp ./patches/KernelSU/SuSFS/$KERNEL_VER/add_susfs_in_kernel-$KERNEL_VER.patch $KERNEL_DIR/
+    	cp ./patches/KernelSU/SuSFS/$KERNEL_VER/susfs.c $KERNEL_DIR/fs/
+    	cp ./patches/KernelSU/SuSFS/$KERNEL_VER/susfs.h $KERNEL_DIR/include/linux/
+	cp ./patches/KernelSU/SuSFS/$KERNEL_VER/sus_su.c $KERNEL_DIR/fs/
+	cp ./patches/KernelSU/SuSFS/$KERNEL_VER/sus_su.h $KERNEL_DIR/include/linux/
     	cd $KERNEL_DIR && patch -p1 -F 3 < add_susfs_in_kernel-$KERNEL_VER.patch
     	msg "Importing SuSFS for $KERNEL_VER kernel..."
     fi
@@ -227,8 +227,10 @@ if [[ $KSU_ENABLED == "true" ]] && [[ ! -z "$KERNELSU_DIR" ]]; then
     else
         KERNELSU_VERSION=$(cat $KERNELSU_DIR/ksu.h | grep "KERNEL_SU_VERSION" | cut -c26-)
     fi
-
+    
+    SUSFS_VERSION=$(grep "SuSFS version:" $WORKDIR/patches/KernelSU/SuSFS/$KERNEL_VER/add_susfs_in_kernel-$KERNEL_VER.patch | cut -d' ' -f3)
     msg "KernelSU Version: $KERNELSU_VERSION"
+    msg "SuSFS version: $SUSFS_VERSION"
     sed -i "s/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=\"-$KERNEL_BRANCH-$KERNEL_NAME-KSU\"/" $DEVICE_DEFCONFIG_FILE
 elif
    [[ $KSU_ENABLED == "true" ]]; then
@@ -236,14 +238,10 @@ elif
     cd $WORKDIR
 
     if version_le "$KERNEL_VER" "5.9"; then
-        if [[ ! -f "$WORKDIR/patches/KernelSU/SuSFS/add_susfs_in_kernel-$KERNEL_VER.patch" ]]; then
+        if [[ ! -f "$WORKDIR/patches/KernelSU/SuSFS/$KERNEL_VER/add_susfs_in_kernel-$KERNEL_VER.patch" ]]; then
     	    cp ./patches/KernelSU/Backport/backport_path_umount.patch $KERNEL_DIR/
             cd $KERNEL_DIR && patch -p1 < backport_path_umount.patch
             msg "Backporting path_umount from 5.10.9..." && cd $WORKDIR
-        else
-            cp ./patches/KernelSU/Backport/backport_path_umount_part2.patch $KERNEL_DIR/ 
-            cd $KERNEL_DIR && patch -p1 < backport_path_umount_part2.patch
-            msg "Partially backporting path_umount from 5.10.9..." && cd $WORKDIR
         fi
         cp ./patches/KernelSU/revert_drop_non_gki.patch  $KERNEL_DIR/KernelSU/
         cd $KERNEL_DIR/KernelSU && patch -p1 < revert_drop_non_gki.patch
@@ -271,14 +269,17 @@ elif
     cd $KERNEL_DIR && patch -p1 < hook_patches_ksu-$KERNEL_VER.patch
     msg "Importing KSU hooks for $KERNEL_VER kernel..." && cd $WORKDIR
 
-    cp ./patches/KernelSU/SuSFS/enable_susfs_for_ksu_auto.patch $KERNEL_DIR/KernelSU
-    cd $KERNEL_DIR/KernelSU && patch -p1 < enable_susfs_for_ksu_auto.patch
+    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/enable_susfs_for_ksu_auto.patch $KERNEL_DIR/KernelSU
+    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/sucompat.h $KERNEL_DIR/KernelSU/kernel/
+    cd $KERNEL_DIR/KernelSU && patch -p1 -F 3 < enable_susfs_for_ksu_auto.patch
     msg "Importing SuSFS into KSU source..." && cd $WORKDIR
 
-    cp ./patches/KernelSU/SuSFS/add_susfs_in_kernel-$KERNEL_VER.patch $KERNEL_DIR/
-    cp ./patches/KernelSU/SuSFS/susfs.c $KERNEL_DIR/fs/
-    cp ./patches/KernelSU/SuSFS/susfs.h $KERNEL_DIR/include/linux/
-    cd $KERNEL_DIR && patch -p1 < add_susfs_in_kernel-$KERNEL_VER.patch
+    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/add_susfs_in_kernel-$KERNEL_VER.patch $KERNEL_DIR/
+    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/susfs.c $KERNEL_DIR/fs/
+    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/susfs.h $KERNEL_DIR/include/linux/
+    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/sus_su.c $KERNEL_DIR/fs/
+    cp ./patches/KernelSU/SuSFS/$KERNEL_VER/sus_su.h $KERNEL_DIR/include/linux/
+    cd $KERNEL_DIR && patch -p1 -F 3 < add_susfs_in_kernel-$KERNEL_VER.patch
     msg "Importing SuSFS into $KERNEL_VER kernel..."
 
     if [[ ! -f "$WORKDIR/patches/KernelSU/Backport/hook_patches_ksu-$KERNEL_VER.patch" ]]; then
@@ -291,11 +292,15 @@ elif
     	echo "CONFIG_KSU=y" >> $DEVICE_DEFCONFIG_FILE
     	echo "CONFIG_KSU_SUSFS=y" >> $DEVICE_DEFCONFIG_FILE
     	echo "CONFIG_KPROBES=n" >> $DEVICE_DEFCONFIG_FILE # it will conflict with KSU hooks if it's on
+	echo "CONFIG_HAVE_KPROBES=n" >> $DEVICE_DEFCONFIG_FILE
+	echo "CONFIG_KPROBE_EVENTS=n" >> $DEVICE_DEFCONFIG_FILE
     fi
 
     KSU_GIT_VERSION=$(cd KernelSU && git rev-list --count HEAD)
     KERNELSU_VERSION=$(($KSU_GIT_VERSION + 10200))
+    SUSFS_VERSION=$(grep "SuSFS version:" $WORKDIR/patches/KernelSU/SuSFS/$KERNEL_VER/add_susfs_in_kernel-$KERNEL_VER.patch | cut -d' ' -f3)
     msg "KernelSU Version: $KERNELSU_VERSION"
+    msg "SuSFS version: $SUSFS_VERSION"
     sed -i "s/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=\"-$KERNEL_BRANCH-$KERNEL_NAME-KSU\"/" $DEVICE_DEFCONFIG_FILE
 fi
 if [[ $KSU_ENABLED == "false" ]]; then
@@ -305,6 +310,7 @@ if [[ $KSU_ENABLED == "false" ]]; then
     echo "CONFIG_KPROBES=n" >> $DEVICE_DEFCONFIG_FILE # just in case KSU is left on by default
 
     KERNELSU_VERSION="Disabled"
+    SUSFS_VERSION="Disabled"
     sed -i "s/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=\"-$KERNEL_BRANCH-$KERNEL_NAME\"/" $DEVICE_DEFCONFIG_FILE
 fi
 
@@ -376,6 +382,7 @@ echo "
 
 - **[Kernel]($KERNEL_SOURCE) Version**: $KERNEL_VERSION
 - **[KernelSU]($KERNELSU_SOURCE) Version**: $KERNELSU_VERSION
+- **[SuSFS](https://gitlab.com/simonpunk/susfs4ksu) Version**: $SUSFS_VERSION
 
 <br>
 
